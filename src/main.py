@@ -2,13 +2,15 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 import os
+import sys
 from flask import Flask, request, jsonify, url_for
 from flask_migrate import Migrate
 from flask_swagger import swagger
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User
+from models import db, Todos
+
 #from models import Person
 
 app = Flask(__name__)
@@ -30,14 +32,31 @@ def handle_invalid_usage(error):
 def sitemap():
     return generate_sitemap(app)
 
-@app.route('/user', methods=['GET'])
-def handle_hello():
+@app.route('/todos', methods=['GET'])
+def all_todos():
+    todos = Todos.query.all()
+    all_todos = list(map(lambda x: x.serialize(), todos ))
+    return jsonify(all_todos), 200
 
-    response_body = {
-        "msg": "Hello, this is your GET /user response "
-    }
+@app.route('/todos', methods=['POST'])
+def create_todos():
+    response = request.get_json()  
+  
+    if 'label' not in response:
+        return 'Invalid', 400 
 
-    return jsonify(response_body), 200
+    row = Todos(done=response['done'], label=response['label'])
+    db.session.add(row)
+    db.session.commit()
+    return jsonify(row.serialize()), 200
+
+
+@app.route('/todos/<id>', methods=['DELETE'])
+def delete_todos(id):
+    row = Todos.query.filter_by(id=id).first_or_404()
+    db.session.delete(row)
+    db.session.commit()
+    return jsonify(row.serialize()), 200
 
 # this only runs if `$ python src/main.py` is executed
 if __name__ == '__main__':
